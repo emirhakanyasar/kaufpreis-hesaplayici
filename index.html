@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kaufpreis Hesaplayıcı — Almanya Gayrimenkul Analizi</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#0d0f14; --surface:#13161e; --surface2:#1a1e2a;
+    --border:#252a38; --border2:#2e3448;
+    --gold:#d4a853; --gold2:#f0c96e; --gold-dim:rgba(212,168,83,0.12);
+    --green:#4ade80; --green-dim:rgba(74,222,128,0.1);
+    --red:#f87171; --red-dim:rgba(248,113,113,0.1);
+    --yellow:#fbbf24; --yellow-dim:rgba(251,191,36,0.1);
+    --text:#e8eaf0; --text2:#8892a4; --text3:#55617a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse 60% 40% at 15% 20%,rgba(212,168,83,.06) 0%,transparent 70%),radial-gradient(ellipse 40% 60% at 85% 80%,rgba(74,222,128,.03) 0%,transparent 70%);pointer-events:none;z-index:0;}
+  .container{max-width:1100px;margin:0 auto;padding:0 24px;position:relative;z-index:1;}
+
+  /* TOOLBAR */
+  .toolbar{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;padding:0 24px;}
+  .toolbar-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:56px;gap:12px;}
+  .toolbar-brand{font-family:'DM Mono',monospace;font-size:.78rem;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;}
+  .toolbar-actions{display:flex;gap:10px;align-items:center;}
+
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:9px;font-family:'Outfit',sans-serif;font-size:.82rem;font-weight:500;cursor:pointer;border:none;transition:.2s;white-space:nowrap;}
+  .btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2);}
+  .btn-ghost:hover{border-color:var(--gold);color:var(--gold);}
+  .btn-primary{background:var(--gold);color:#0d0f14;font-weight:700;}
+  .btn-primary:hover{background:var(--gold2);}
+  .btn-green{background:rgba(74,222,128,.15);color:var(--green);border:1px solid rgba(74,222,128,.25);}
+  .btn-green:hover{background:rgba(74,222,128,.25);}
+  .btn svg{width:14px;height:14px;flex-shrink:0;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:28px;right:28px;background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:14px 20px;font-size:.85rem;color:var(--text);display:flex;align-items:center;gap:10px;z-index:999;transform:translateY(80px);opacity:0;transition:.3s ease;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+  .toast.show{transform:translateY(0);opacity:1;}
+  .toast.toast-ok{border-color:rgba(74,222,128,.3);color:var(--green);}
+  .toast.toast-err{border-color:rgba(248,113,113,.3);color:var(--red);}
+
+  header{padding:48px 0 36px;border-bottom:1px solid var(--border);margin-bottom:44px;}
+  .eyebrow{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--gold);letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:10px;}
+  .eyebrow::before{content:'';display:block;width:20px;height:1px;background:var(--gold);}
+  h1{font-family:'DM Serif Display',serif;font-size:2.4rem;color:var(--text);line-height:1.1;margin-bottom:10px;}
+  h1 em{color:var(--gold);font-style:italic;}
+  .header-sub{color:var(--text2);font-size:.92rem;font-weight:300;max-width:540px;line-height:1.6;}
+
+  .grid-layout{display:grid;grid-template-columns:1fr 400px;gap:24px;align-items:start;}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:20px;animation:fadeIn .35s ease forwards;}
+  .panel:nth-child(2){animation-delay:.08s;} .panel:nth-child(3){animation-delay:.16s;}
+  .panel-title{font-size:.7rem;font-family:'DM Mono',monospace;letter-spacing:2.5px;text-transform:uppercase;color:var(--text3);margin-bottom:22px;display:flex;align-items:center;gap:10px;}
+  .panel-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  .field{margin-bottom:18px;} .field:last-child{margin-bottom:0;}
+  label{display:block;font-size:.82rem;font-weight:500;color:var(--text2);margin-bottom:7px;}
+  label span{font-size:.72rem;color:var(--text3);font-weight:400;margin-left:4px;}
+  .input-wrap{position:relative;display:flex;align-items:center;}
+  .input-prefix,.input-suffix{position:absolute;font-family:'DM Mono',monospace;font-size:.82rem;color:var(--text3);pointer-events:none;}
+  .input-prefix{left:14px;} .input-suffix{right:14px;}
+  input[type="number"],select{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'DM Mono',monospace;font-size:.95rem;padding:11px 14px 11px 36px;outline:none;transition:border-color .2s,box-shadow .2s;-moz-appearance:textfield;}
+  input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;}
+  input[type="number"]:focus,select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,168,83,.12);}
+  .no-prefix input[type="number"]{padding-left:14px;}
+  select{padding-left:14px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2355617a' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;}
+
+  .range-group{display:flex;flex-direction:column;gap:8px;}
+  .range-display{display:flex;justify-content:space-between;align-items:center;}
+  .range-val{font-family:'DM Mono',monospace;font-size:1.05rem;color:var(--gold2);font-weight:500;}
+  .range-label{font-size:.75rem;color:var(--text3);}
+  input[type="range"]{-webkit-appearance:none;background:var(--border2);height:4px;border-radius:2px;padding:0;border:none;cursor:pointer;width:100%;}
+  input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px rgba(212,168,83,.2);cursor:pointer;}
+  input[type="range"]:focus{box-shadow:none;border-color:transparent;}
+
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .divider{height:1px;background:var(--border);margin:22px 0;}
+
+  .results-panel{position:sticky;top:72px;}
+
+  .empty-state{background:var(--surface);border:1px dashed var(--border2);border-radius:16px;padding:60px 28px;text-align:center;}
+  .es-icon{font-size:2.5rem;margin-bottom:16px;}
+  .es-title{font-family:'DM Serif Display',serif;font-size:1.3rem;color:var(--text2);margin-bottom:8px;}
+  .es-sub{font-size:.85rem;color:var(--text3);line-height:1.6;}
+
+  .main-metric{background:linear-gradient(145deg,var(--surface2),var(--surface));border:1px solid var(--border2);border-radius:16px;padding:28px;margin-bottom:16px;text-align:center;position:relative;overflow:hidden;display:none;}
+  .main-metric::after{content:'';position:absolute;bottom:-40px;right:-40px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,83,.08),transparent);}
+  .main-metric .verdict{font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px;transition:color .3s;}
+  .main-metric .kpf-val{font-family:'DM Serif Display',serif;font-size:4rem;line-height:1;margin-bottom:6px;transition:color .3s;}
+  .main-metric .kpf-lbl{font-size:.8rem;color:var(--text3);font-weight:300;}
+  .v-excellent .verdict,.v-excellent .kpf-val{color:var(--green);}
+  .v-good .verdict,.v-good .kpf-val{color:var(--gold2);}
+  .v-medium .verdict,.v-medium .kpf-val{color:var(--yellow);}
+  .v-bad .verdict,.v-bad .kpf-val{color:var(--red);}
+  .meter{margin:14px 0 0;}
+  .meter-track{height:6px;background:var(--border2);border-radius:3px;overflow:hidden;}
+  .meter-fill{height:100%;border-radius:3px;transition:width .4s ease,background .4s;}
+  .meter-scale{display:flex;justify-content:space-between;margin-top:5px;}
+  .meter-scale span{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text3);}
+
+  .metrics-grid{display:none;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+  .metric-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;}
+  .metric-card .mc-label{font-size:.72rem;color:var(--text3);margin-bottom:4px;}
+  .metric-card .mc-val{font-family:'DM Mono',monospace;font-size:1.1rem;font-weight:500;transition:color .3s;}
+  .metric-card .mc-sub{font-size:.72rem;color:var(--text3);margin-top:2px;}
+
+  .cashflow-card{border-radius:14px;padding:20px;margin-bottom:16px;display:none;transition:background .3s,border-color .3s;}
+  .cashflow-card.cf-pos{background:var(--green-dim);border:1px solid rgba(74,222,128,.2);}
+  .cashflow-card.cf-neg{background:var(--red-dim);border:1px solid rgba(248,113,113,.2);}
+  .cashflow-card.cf-zero{background:var(--yellow-dim);border:1px solid rgba(251,191,36,.2);}
+  .cf-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .cf-title{font-size:.75rem;color:var(--text3);letter-spacing:1px;text-transform:uppercase;}
+  .cf-badge{font-size:.72rem;padding:3px 10px;border-radius:20px;font-weight:500;}
+  .cf-pos .cf-badge{background:rgba(74,222,128,.2);color:var(--green);}
+  .cf-neg .cf-badge{background:rgba(248,113,113,.2);color:var(--red);}
+  .cf-zero .cf-badge{background:rgba(251,191,36,.2);color:var(--yellow);}
+  .cf-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.85rem;}
+  .cf-row:last-child{border:none;}
+  .cf-row .ck{color:var(--text2);} .cf-row .cv{font-family:'DM Mono',monospace;font-weight:500;}
+  .cf-total{display:flex;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);}
+  .cf-total .ck{color:var(--text);font-weight:600;font-size:.9rem;}
+  .cf-total .cv{font-family:'DM Mono',monospace;font-size:1.2rem;font-weight:700;transition:color .3s;}
+  .cf-pos .cf-total .cv{color:var(--green);} .cf-neg .cf-total .cv{color:var(--red);} .cf-zero .cf-total .cv{color:var(--yellow);}
+
+  .equity-card{background:var(--gold-dim);border:1px solid rgba(212,168,83,.2);border-radius:14px;padding:20px;margin-bottom:16px;display:none;}
+  .eq-row{display:flex;justify-content:space-between;padding:5px 0;font-size:.85rem;border-bottom:1px solid rgba(212,168,83,.08);}
+  .eq-row:last-child{border:none;}
+  .eq-row .ek{color:var(--text2);} .eq-row .ev{font-family:'DM Mono',monospace;color:var(--gold2);font-weight:500;}
+  .eq-total-row{border-top:1px solid rgba(212,168,83,.2);margin-top:8px;padding-top:10px;display:flex;justify-content:space-between;}
+
+  .capacity-card{border-radius:14px;padding:20px;margin-bottom:16px;display:none;}
+  .capacity-card.cap-ok{background:var(--green-dim);border:1px solid rgba(74,222,128,.2);}
+  .capacity-card.cap-warn{background:var(--yellow-dim);border:1px solid rgba(251,191,36,.2);}
+  .capacity-card.cap-fail{background:var(--red-dim);border:1px solid rgba(248,113,113,.2);}
+  .cap-title{font-size:.75rem;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:10px;}
+  .cap-main{display:flex;justify-content:space-between;align-items:center;}
+  .cap-label{font-size:.85rem;color:var(--text2);}
+  .cap-val{font-family:'DM Mono',monospace;font-size:1rem;font-weight:600;}
+  .cap-ok .cap-val{color:var(--green);} .cap-warn .cap-val{color:var(--yellow);} .cap-fail .cap-val{color:var(--red);}
+  .cap-bar{margin-top:10px;height:4px;background:var(--border2);border-radius:2px;overflow:hidden;}
+  .cap-fill{height:100%;border-radius:2px;transition:width .4s ease,background .4s;}
+  .cap-ok .cap-fill{background:var(--green);} .cap-warn .cap-fill{background:var(--yellow);} .cap-fail .cap-fill{background:var(--red);}
+
+  .city-hint{background:var(--surface2);border:1px solid var(--border2);border-radius:14px;padding:18px;font-size:.82rem;color:var(--text2);display:none;}
+  .city-hint strong{color:var(--gold);font-weight:600;}
+  .city-hint p{margin-bottom:6px;} .city-hint p:last-child{margin-bottom:0;}
+
+  .ref-table{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:24px;}
+  .ref-row{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);font-size:.88rem;}
+  .ref-row:last-child{border:none;}
+  .ref-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .ref-range{font-family:'DM Mono',monospace;font-weight:500;min-width:80px;}
+  .ref-verdict{font-weight:600;}
+  .ref-note{color:var(--text3);font-size:.8rem;margin-left:auto;}
+
+  @keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+  footer{margin-top:60px;padding:28px 0;border-top:1px solid var(--border);text-align:center;font-size:.78rem;color:var(--text3);line-height:1.7;}
+
+  #configFileInput{display:none;}
+
+  @media(max-width:860px){.grid-layout{grid-template-columns:1fr;}.results-panel{position:static;}h1{font-size:1.9rem;}.toolbar-brand{display:none;}}
+  @media(max-width:480px){.two-col{grid-template-columns:1fr;}.metrics-grid{grid-template-columns:1fr;}.toolbar-actions{gap:6px;}.btn{padding:7px 10px;font-size:.78rem;}}
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="toolbar-inner">
+    <div class="toolbar-brand">Kaufpreis Hesaplayıcı</div>
+    <div class="toolbar-actions">
+      <!-- Hidden file input for import -->
+      <input type="file" id="configFileInput" accept=".json" onchange="importConfig(event)">
+
+      <button class="btn btn-ghost" onclick="document.getElementById('configFileInput').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Config Yükle
+      </button>
+
+      <button class="btn btn-ghost" onclick="exportConfig()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Config Kaydet
+      </button>
+
+      <button class="btn btn-primary" id="pdfBtn" onclick="exportPDF()" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        PDF İndir
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <header>
+    <div class="eyebrow">Gayrimenkul Analiz Aracı</div>
+    <h1>Almanya'da <em>Kaufpreis</em> Hesaplayıcı</h1>
+    <div class="header-sub">Tüm parametreleri girin — Kaufpreisfaktor, nakit akışı, öz sermaye ve banka kapasitesi anında hesaplanır. Sonuçları PDF olarak dışa aktarın veya girdiğiniz verileri JSON config olarak kaydedin.</div>
+  </header>
+
+  <div class="grid-layout">
+    <!-- INPUTS -->
+    <div class="inputs-col">
+
+      <div class="panel">
+        <div class="panel-title">01 · Mülk Bilgileri</div>
+        <div class="field">
+          <label>Satın Alma Fiyatı <span>(Kaufpreis)</span></label>
+          <div class="input-wrap"><span class="input-prefix">€</span>
+            <input type="number" id="price" placeholder="150000" min="0" step="1000" oninput="calc()">
+          </div>
+        </div>
+        <div class="field">
+          <label>Mülk Açıklaması / Notu <span>(isteğe bağlı — PDF'e yansır)</span></label>
+          <div class="input-wrap no-prefix">
+            <input type="number" id="noteProxy" style="display:none">
+            <input type="text" id="propNote" placeholder="Ör: Mannheim, Neckarstadt, 3.Kat" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Outfit',sans-serif;font-size:.92rem;padding:11px 14px;outline:none;transition:border-color .2s,box-shadow .2s;" onfocus="this.style.borderColor='var(--gold)';this.style.boxShadow='0 0 0 3px rgba(212,168,83,.12)'" onblur="this.style.borderColor='var(--border2)';this.style.boxShadow='none'">
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label>Büyüklük <span>(m²)</span></label>
+            <div class="input-wrap"><span class="input-prefix">m²</span>
+              <input type="number" id="sqm" placeholder="60" min="1" oninput="calc()">
+            </div>
+          </div>
+          <div class="field">
+            <label>Oda Sayısı</label>
+            <div class="input-wrap no-prefix">
+              <select id="rooms" onchange="calc()">
+                <option value="" disabled selected>Seçin</option>
+                <option value="1">1 Zimmer</option>
+                <option value="2">2 Zimmer</option>
+                <option value="3">3 Zimmer</option>
+                <option value="4">4 Zimmer</option>
+                <option value="5">5+ Zimmer</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Beklenen Aylık Kira <span>(Kaltmiete)</span></label>
+          <div class="input-wrap"><span class="input-prefix">€</span>
+            <input type="number" id="rent" placeholder="750" min="0" step="10" oninput="calc()">
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">02 · Satın Alma Masrafları (Nebenkosten)</div>
+        <div class="field">
+          <label>Tapu Devir Vergisi <span>(Grunderwerbsteuer)</span></label>
+          <div class="range-group">
+            <div class="range-display">
+              <span class="range-val" id="gstDisplay">5.0%</span>
+              <span class="range-label">Bayern %3,5 · BW %5 · NRW %6,5</span>
+            </div>
+            <input type="range" id="gst" min="3.5" max="6.5" step="0.5" value="5.0" oninput="updateRange('gst','gstDisplay','%',1);calc()">
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label>Notar + Grundbuch</label>
+            <div class="input-wrap"><span class="input-prefix">€</span>
+              <input type="number" id="notar" placeholder="2500" min="0" step="100" oninput="calc()">
+            </div>
+          </div>
+          <div class="field">
+            <label>Makler Ücreti</label>
+            <div class="input-wrap no-prefix">
+              <select id="makler" onchange="calc()">
+                <option value="0">Provisionsfrei</option>
+                <option value="3.57">%3,57 — standart</option>
+                <option value="5.95">%5,95 — bazı bölgeler</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Hausgeld / Aylık Aidat</label>
+          <div class="input-wrap"><span class="input-prefix">€</span>
+            <input type="number" id="hausgeld" placeholder="150" min="0" step="10" oninput="calc()">
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">03 · Kredi Parametreleri</div>
+        <div class="field">
+          <label>Peşinat Oranı <span>(Eigenkapital %)</span></label>
+          <div class="range-group">
+            <div class="range-display">
+              <span class="range-val" id="downDisplay">20%</span>
+              <span class="range-label" id="downEuro">Fiyat girilince hesaplanır</span>
+            </div>
+            <input type="range" id="down" min="10" max="50" step="5" value="20" oninput="updateDown();calc()">
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label>Faiz Oranı <span>(Sollzins)</span></label>
+            <div class="range-group">
+              <div class="range-display"><span class="range-val" id="rateDisplay">4.0%</span><span class="range-label">yıllık sabit</span></div>
+              <input type="range" id="rate" min="2.0" max="7.0" step="0.1" value="4.0" oninput="updateRange('rate','rateDisplay','%',1);calc()">
+            </div>
+          </div>
+          <div class="field">
+            <label>Vade <span>(Laufzeit)</span></label>
+            <div class="range-group">
+              <div class="range-display"><span class="range-val" id="termDisplay">25</span><span class="range-label">yıl</span></div>
+              <input type="range" id="term" min="5" max="35" step="5" value="25" oninput="updateRange('term','termDisplay','',0);calc()">
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="panel-title" style="margin-bottom:16px;">04 · Mevcut Finansal Durum</div>
+        <div class="two-col">
+          <div class="field">
+            <label>Aylık Net Gelir</label>
+            <div class="input-wrap"><span class="input-prefix">€</span>
+              <input type="number" id="income" placeholder="3000" min="0" step="100" oninput="calc()">
+            </div>
+          </div>
+          <div class="field">
+            <label>Mevcut Borç Taksitleri <span>(aylık)</span></label>
+            <div class="input-wrap"><span class="input-prefix">€</span>
+              <input type="number" id="existing" placeholder="0" min="0" step="10" oninput="calc()">
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Mevcut Birikim / Öz Sermaye</label>
+          <div class="input-wrap"><span class="input-prefix">€</span>
+            <input type="number" id="savings" placeholder="40000" min="0" step="1000" oninput="calc()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="results-panel">
+      <div class="empty-state" id="emptyState">
+        <div class="es-icon">🏠</div>
+        <div class="es-title">Analiz için veri girin</div>
+        <div class="es-sub">Satın alma fiyatı ve aylık kira beklentisini girdikten sonra tüm sonuçlar burada görünecek.</div>
+      </div>
+
+      <div class="main-metric" id="mainMetric">
+        <div class="verdict" id="kpfVerdict">—</div>
+        <div class="kpf-val" id="kpfVal">—</div>
+        <div class="kpf-lbl">Kaufpreisfaktor</div>
+        <div class="meter">
+          <div class="meter-track"><div class="meter-fill" id="kpfMeter" style="width:0%;background:var(--gold);"></div></div>
+          <div class="meter-scale"><span>10</span><span>15</span><span>20</span><span>25</span><span>30+</span></div>
+        </div>
+      </div>
+
+      <div class="metrics-grid" id="metricsGrid">
+        <div class="metric-card"><div class="mc-label">Brüt Getiri</div><div class="mc-val" id="bruttoVal">—</div><div class="mc-sub">Bruttorendite</div></div>
+        <div class="metric-card"><div class="mc-label">Yıllık Kira</div><div class="mc-val" id="annualRentVal" style="color:var(--text)">—</div><div class="mc-sub">Jahreskaltmiete</div></div>
+        <div class="metric-card"><div class="mc-label">m² Satış Fiyatı</div><div class="mc-val" id="sqmPriceVal" style="color:var(--text)">—</div><div class="mc-sub">€ / m²</div></div>
+        <div class="metric-card"><div class="mc-label">m² Kira</div><div class="mc-val" id="sqmRentVal" style="color:var(--text)">—</div><div class="mc-sub">€ / m²</div></div>
+      </div>
+
+      <div class="cashflow-card" id="cashflowCard">
+        <div class="cf-header"><div class="cf-title">Aylık Nakit Akışı</div><div class="cf-badge" id="cfBadge">—</div></div>
+        <div class="cf-row"><span class="ck">Kira Geliri</span><span class="cv" id="cfRent">—</span></div>
+        <div class="cf-row"><span class="ck">Banka Taksiti (Annuität)</span><span class="cv" id="cfMortgage">—</span></div>
+        <div class="cf-row"><span class="ck">Hausgeld</span><span class="cv" id="cfHausgeld">—</span></div>
+        <div class="cf-total"><span class="ck">Aylık Fark</span><span class="cv" id="cfTotal">—</span></div>
+      </div>
+
+      <div class="equity-card" id="equityCard">
+        <div class="panel-title" style="margin-bottom:14px;">Gerekli Öz Sermaye</div>
+        <div class="eq-row"><span class="ek">Peşinat</span><span class="ev" id="eqDown">—</span></div>
+        <div class="eq-row"><span class="ek">Grunderwerbsteuer</span><span class="ev" id="eqGst">—</span></div>
+        <div class="eq-row"><span class="ek">Notar + Grundbuch</span><span class="ev" id="eqNotar">—</span></div>
+        <div class="eq-row"><span class="ek">Makler</span><span class="ev" id="eqMakler">—</span></div>
+        <div class="eq-total-row">
+          <span style="font-weight:600;font-size:.9rem;">Toplam Nakit İhtiyacı</span>
+          <span id="eqTotal" style="font-family:'DM Mono',monospace;font-size:1.1rem;font-weight:700;color:var(--gold2);">—</span>
+        </div>
+        <div style="margin-top:8px;font-size:.78rem;" id="eqSuficiency"></div>
+      </div>
+
+      <div class="capacity-card" id="capCard">
+        <div class="cap-title">Banka Kapasitesi (%40 Kuralı)</div>
+        <div class="cap-main"><span class="cap-label" id="capLabel">—</span><span class="cap-val" id="capVal">—</span></div>
+        <div class="cap-bar"><div class="cap-fill" id="capFill" style="width:0%"></div></div>
+        <div style="font-size:.75rem;color:var(--text3);margin-top:8px;" id="capDetail"></div>
+      </div>
+
+      <div class="city-hint" id="cityHint"></div>
+    </div>
+  </div>
+
+  <!-- REFERENCE TABLE -->
+  <div class="ref-table">
+    <div class="panel-title" style="margin-bottom:20px;">Kaufpreisfaktor Referans Tablosu</div>
+    <div class="ref-row"><div class="ref-dot" style="background:var(--green)"></div><div class="ref-range" style="color:var(--green)">10 – 15</div><div class="ref-verdict" style="color:var(--green)">Mükemmel</div><div class="ref-note">Güçlü nakit akışı — Doğu Almanya bazı şehirler</div></div>
+    <div class="ref-row"><div class="ref-dot" style="background:var(--gold2)"></div><div class="ref-range" style="color:var(--gold2)">15 – 20</div><div class="ref-verdict" style="color:var(--gold2)">İyi</div><div class="ref-note">Cash flow neredeyse sıfır — Mannheim, Ludwigshafen</div></div>
+    <div class="ref-row"><div class="ref-dot" style="background:var(--yellow)"></div><div class="ref-range" style="color:var(--yellow)">20 – 25</div><div class="ref-verdict" style="color:var(--yellow)">Orta</div><div class="ref-note">Dikkatli analiz gerekli — Augsburg, Heilbronn</div></div>
+    <div class="ref-row"><div class="ref-dot" style="background:var(--red)"></div><div class="ref-range" style="color:var(--red)">25+</div><div class="ref-verdict" style="color:var(--red)">Pahalı</div><div class="ref-note">Kira taksiti karşılamaz — München (30–40+)</div></div>
+  </div>
+
+  <footer>
+    Kaufpreis Hesaplayıcı · Almanya Gayrimenkul Analiz Aracı<br>
+    Bu araç bilgilendirme amaçlıdır. Yatırım kararları için Steuerberater ve finans danışmanıyla görüşün.
+  </footer>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function fmt(n,d=0){if(isNaN(n)||n===null)return'—';return n.toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function fmtEur(n,d=0){return fmt(n,d)+' €';}
+function fmtPct(n,d=1){return fmt(n,d)+'%';}
+function show(id,display='block'){document.getElementById(id).style.display=display;}
+function hide(id){document.getElementById(id).style.display='none';}
+
+function showToast(msg, type='ok'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast toast-'+type+' show';
+  setTimeout(()=>t.className='toast',2800);
+}
+
+function updateRange(id,dispId,suffix,decimals){
+  document.getElementById(dispId).textContent=fmt(parseFloat(document.getElementById(id).value),decimals)+suffix;
+}
+function updateDown(){
+  const pct=parseFloat(document.getElementById('down').value);
+  const price=parseFloat(document.getElementById('price').value)||0;
+  document.getElementById('downDisplay').textContent=pct+'%';
+  document.getElementById('downEuro').textContent=price>0?'= '+fmtEur(price*pct/100):'Fiyat girilince hesaplanır';
+}
+function monthlyPayment(principal,annualRate,years){
+  if(principal<=0)return 0;
+  if(annualRate===0)return principal/(years*12);
+  const r=annualRate/100/12,n=years*12;
+  return principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
+}
+
+// ─── GLOBAL STATE ─────────────────────────────────────────────────────────────
+let state = {};
+
+// ─── MAIN CALC ────────────────────────────────────────────────────────────────
+function calc(){
+  const price   =parseFloat(document.getElementById('price').value);
+  const sqm     =parseFloat(document.getElementById('sqm').value)||1;
+  const rent    =parseFloat(document.getElementById('rent').value);
+  const gstPct  =parseFloat(document.getElementById('gst').value)||5;
+  const notarAmt=parseFloat(document.getElementById('notar').value)||0;
+  const maklerPct=parseFloat(document.getElementById('makler').value)||0;
+  const hausgeld=parseFloat(document.getElementById('hausgeld').value)||0;
+  const downPct =parseFloat(document.getElementById('down').value)||20;
+  const rate    =parseFloat(document.getElementById('rate').value)||4;
+  const term    =parseFloat(document.getElementById('term').value)||25;
+  const income  =parseFloat(document.getElementById('income').value);
+  const existing=parseFloat(document.getElementById('existing').value)||0;
+  const savings =parseFloat(document.getElementById('savings').value);
+
+  const hasData=!isNaN(price)&&price>0&&!isNaN(rent)&&rent>0;
+  document.getElementById('pdfBtn').disabled=!hasData;
+
+  if(!hasData){
+    hide('mainMetric');hide('metricsGrid');hide('cashflowCard');
+    hide('equityCard');hide('capCard');hide('cityHint');
+    show('emptyState'); updateDown(); state={hasData:false}; return;
+  }
+  hide('emptyState');
+
+  const annualRent   =rent*12;
+  const kpf          =price/annualRent;
+  const bruttoRendite=(annualRent/price)*100;
+  const sqmPrice     =price/sqm;
+  const sqmRent      =rent/sqm;
+  const gstAmt       =price*gstPct/100;
+  const maklerAmt    =price*maklerPct/100;
+  const downAmt      =price*downPct/100;
+  const nebenkosten  =gstAmt+notarAmt+maklerAmt;
+  const totalEquity  =downAmt+nebenkosten;
+  const loanAmt      =price-downAmt;
+  const monthlyMortgage=monthlyPayment(loanAmt,rate,term);
+  const totalMonthly =monthlyMortgage+hausgeld;
+  const cashflow     =rent-totalMonthly;
+  const debtRatio    =income>0?(monthlyMortgage+existing)/income*100:null;
+
+  // Store in state for PDF
+  state={hasData,price,sqm,rent,gstPct,notarAmt,maklerPct,hausgeld,downPct,rate,term,income,existing,savings,
+         annualRent,kpf,bruttoRendite,sqmPrice,sqmRent,gstAmt,maklerAmt,downAmt,nebenkosten,
+         totalEquity,loanAmt,monthlyMortgage,totalMonthly,cashflow,debtRatio,
+         propNote:document.getElementById('propNote').value,
+         rooms:document.getElementById('rooms').value};
+
+  // KPF
+  show('mainMetric');
+  const metricEl=document.getElementById('mainMetric');
+  metricEl.className='main-metric';
+  document.getElementById('kpfVal').textContent=fmt(kpf,1);
+  let kpfClass,kpfText,meterColor,meterWidth;
+  if(kpf<=15)     {kpfClass='v-excellent';kpfText='🟢 MÜKEMMEL';meterWidth=20;meterColor='#4ade80';}
+  else if(kpf<=20){kpfClass='v-good';     kpfText='🟡 İYİ';     meterWidth=45;meterColor='#f0c96e';}
+  else if(kpf<=25){kpfClass='v-medium';   kpfText='🟠 ORTA';    meterWidth=72;meterColor='#fbbf24';}
+  else            {kpfClass='v-bad';       kpfText='🔴 PAHALI';  meterWidth=95;meterColor='#f87171';}
+  metricEl.classList.add(kpfClass);
+  document.getElementById('kpfVerdict').textContent=kpfText;
+  document.getElementById('kpfMeter').style.width=meterWidth+'%';
+  document.getElementById('kpfMeter').style.background=meterColor;
+
+  // Metrics grid
+  show('metricsGrid','grid');
+  document.getElementById('bruttoVal').textContent=fmtPct(bruttoRendite,2);
+  document.getElementById('bruttoVal').style.color=bruttoRendite>=6?'#4ade80':bruttoRendite>=4?'#f0c96e':'#f87171';
+  document.getElementById('annualRentVal').textContent=fmtEur(annualRent);
+  document.getElementById('sqmPriceVal').textContent=fmt(sqmPrice,0)+' €/m²';
+  document.getElementById('sqmRentVal').textContent=fmt(sqmRent,2)+' €/m²';
+
+  // Cashflow
+  show('cashflowCard');
+  const cfCard=document.getElementById('cashflowCard');
+  cfCard.className='cashflow-card';
+  let cfClass,cfBadgeText;
+  if(cashflow>50){cfClass='cf-pos';cfBadgeText='Pozitif Nakit Akışı ✓';}
+  else if(cashflow>=-100){cfClass='cf-zero';cfBadgeText='Neredeyse Sıfır ≈';}
+  else{cfClass='cf-neg';cfBadgeText='Negatif Akış ✗';}
+  cfCard.classList.add(cfClass);
+  document.getElementById('cfBadge').textContent=cfBadgeText;
+  document.getElementById('cfRent').textContent=fmtEur(rent);
+  document.getElementById('cfMortgage').textContent='–'+fmtEur(monthlyMortgage,0);
+  document.getElementById('cfHausgeld').textContent='–'+fmtEur(hausgeld);
+  document.getElementById('cfTotal').textContent=(cashflow>=0?'+':'')+fmtEur(cashflow,0);
+
+  // Equity
+  show('equityCard');
+  document.getElementById('eqDown').textContent=fmtEur(downAmt,0);
+  document.getElementById('eqGst').textContent=fmtEur(gstAmt,0);
+  document.getElementById('eqNotar').textContent=fmtEur(notarAmt,0);
+  document.getElementById('eqMakler').textContent=fmtEur(maklerAmt,0);
+  document.getElementById('eqTotal').textContent=fmtEur(totalEquity,0);
+  const sufEl=document.getElementById('eqSuficiency');
+  if(!isNaN(savings)&&savings>0){
+    const diff=savings-totalEquity;
+    sufEl.style.color=diff>=0?'#4ade80':'#f87171';
+    sufEl.textContent=diff>=0?`✓ Birikimin yeterli — ${fmtEur(diff)} fazla kalır`:`✗ ${fmtEur(Math.abs(diff))} eksik — ek tasarruf gerekli`;
+  } else sufEl.textContent='';
+
+  // Bank capacity
+  if(!isNaN(income)&&income>0){
+    show('capCard');
+    const capCard=document.getElementById('capCard');
+    capCard.className='capacity-card';
+    const maxInst=income*0.40;
+    const cappedRatio=Math.min(debtRatio,100);
+    let capClass=debtRatio<=35?'cap-ok':debtRatio<=45?'cap-warn':'cap-fail';
+    capCard.classList.add(capClass);
+    document.getElementById('capFill').style.width=cappedRatio+'%';
+    document.getElementById('capVal').textContent=fmtPct(debtRatio,1)+' / %40';
+    document.getElementById('capLabel').textContent=debtRatio<=40?'Banka Limitinde ✓':'Limit Aşıldı ✗';
+    let detail=`İpotek: ${fmtEur(monthlyMortgage,0)}/ay`;
+    if(existing>0)detail+=` + mevcut borç: ${fmtEur(existing)}/ay`;
+    detail+=` · Azami: ${fmtEur(maxInst,0)}/ay`;
+    document.getElementById('capDetail').textContent=detail;
+  } else hide('capCard');
+
+  // Hint
+  show('cityHint');
+  const hint=document.getElementById('cityHint');
+  let h='';
+  if(kpf<=15) h=`<p><strong>🟢 Olağanüstü Fırsat!</strong> Bu aralıkta nakit akışı güçlü pozitif olacak. Genellikle büyüme potansiyeli taşıyan, henüz fiyatlanmamış bölgelerde görülür. <span style="color:var(--text3)">Örnek şehirler: Leipzig, Erfurt, Magdeburg, Chemnitz.</span></p>`;
+  else if(kpf<=20) h=`<p><strong>🟡 Sağlıklı Yatırım Bölgesi.</strong> Kira geliri büyük ihtimalle aylık taksidi karşılar veya çok az fark kalır. Almanya'da yatırım için hedef aralık budur. <span style="color:var(--text3)">Örnek şehirler: Mannheim, Ludwigshafen, Kaiserslautern, Bochum, Duisburg.</span></p>`;
+  else if(kpf<=25) h=`<p><strong>🟠 Dikkatli Analiz Gerekli.</strong> Nakit akışı marjinal — kira boşluğu veya beklenmedik masraf durumunda fark cebinizden gidebilir. <span style="color:var(--text3)">Örnek şehirler: Augsburg, Heilbronn, Nürnberg, Stuttgart çevresi.</span></p>`;
+  else h=`<p><strong>🔴 Yüksek Fiyat Bölgesi.</strong> Bu faktörde kira büyük ihtimalle aylık taksidi karşılamaz; farkı kendiniz ödemeniz gerekir. Yatırım amaçlı alım için risk yüksektir. <span style="color:var(--text3)">Örnek şehirler: München, Frankfurt, Hamburg, Berlin iç bölgeler.</span></p>`;
+  if(cashflow>0) h+=`<p style="margin-top:8px;color:#4ade80;">✓ Yıllık <strong>${fmtEur(cashflow*12,0)}</strong> ekstra nakit akışı.</p>`;
+  else if(cashflow<-200) h+=`<p style="margin-top:8px;color:#f87171;">✗ Aylık <strong>${fmtEur(Math.abs(cashflow),0)}</strong> farkı kendiniz karşılamanız gerekiyor.</p>`;
+  hint.innerHTML=h;
+
+  updateDown();
+}
+
+// ─── CONFIG EXPORT ────────────────────────────────────────────────────────────
+function exportConfig(){
+  const cfg={
+    _version:1,
+    _savedAt: new Date().toISOString(),
+    _note:"Kaufpreis Hesaplayici - Config Dosyasi",
+    price:       document.getElementById('price').value,
+    sqm:         document.getElementById('sqm').value,
+    rooms:       document.getElementById('rooms').value,
+    rent:        document.getElementById('rent').value,
+    propNote:    document.getElementById('propNote').value,
+    gst:         document.getElementById('gst').value,
+    notar:       document.getElementById('notar').value,
+    makler:      document.getElementById('makler').value,
+    hausgeld:    document.getElementById('hausgeld').value,
+    down:        document.getElementById('down').value,
+    rate:        document.getElementById('rate').value,
+    term:        document.getElementById('term').value,
+    income:      document.getElementById('income').value,
+    existing:    document.getElementById('existing').value,
+    savings:     document.getElementById('savings').value,
+  };
+
+  const blob=new Blob([JSON.stringify(cfg,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const note=cfg.propNote?cfg.propNote.replace(/[^a-zA-Z0-9_-]/g,'_').substring(0,30):'hesaplama';
+  const date=new Date().toISOString().split('T')[0];
+  a.href=url; a.download=`kaufpreis_${note}_${date}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('✓ Config dosyası kaydedildi','ok');
+}
+
+// ─── CONFIG IMPORT ────────────────────────────────────────────────────────────
+function importConfig(event){
+  const file=event.target.files[0];
+  if(!file){return;}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const cfg=JSON.parse(e.target.result);
+      if(!cfg._version){throw new Error('Geçersiz config formatı');}
+      const fields=['price','sqm','rooms','rent','propNote','notar','hausgeld','income','existing','savings'];
+      fields.forEach(id=>{
+        const el=document.getElementById(id);
+        if(el&&cfg[id]!==undefined&&cfg[id]!=='')el.value=cfg[id];
+      });
+      // Range inputs
+      ['gst','down','rate','term'].forEach(id=>{
+        if(cfg[id]!==undefined){
+          document.getElementById(id).value=cfg[id];
+        }
+      });
+      // Select
+      if(cfg.makler!==undefined) document.getElementById('makler').value=cfg.makler;
+
+      updateRange('gst','gstDisplay','%',1);
+      updateRange('rate','rateDisplay','%',1);
+      updateRange('term','termDisplay','',0);
+      calc();
+      showToast('✓ Config başarıyla yüklendi','ok');
+    } catch(err){
+      showToast('✗ Config yüklenemedi: '+err.message,'err');
+    }
+    event.target.value=''; // reset so same file can be re-imported
+  };
+  reader.readAsText(file);
+}
+
+// ─── PDF EXPORT ───────────────────────────────────────────────────────────────
+function exportPDF(){
+  if(!state.hasData){showToast('Önce hesaplama yapın','err');return;}
+  const s=state;
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const W=210,H=297;
+  const ml=18,mr=18,contentW=W-ml-mr;
+  let y=0;
+
+  // ── Color palette
+  const COL={
+    bg:[13,15,20], surface:[26,30,42], border:[37,42,56],
+    gold:[212,168,83], gold2:[240,201,110],
+    green:[74,222,128], red:[248,113,113], yellow:[251,191,36],
+    text:[232,234,240], text2:[136,146,164], text3:[85,97,122],
+    white:[255,255,255]
+  };
+
+  function setFill(c){doc.setFillColor(...c);}
+  function setDraw(c){doc.setDrawColor(...c);}
+  function setTextC(c){doc.setTextColor(...c);}
+  function rect(x,ry,w,h,c){setFill(c);doc.rect(x,ry,w,h,'F');}
+  function line(x1,y1,x2,y2,c,lw=0.3){setDraw(c);doc.setLineWidth(lw);doc.line(x1,y1,x2,y2);}
+
+  function text(str,x,ty,size,color,align='left',style='normal'){
+    doc.setFontSize(size); setTextC(color); doc.setFont('helvetica',style);
+    doc.text(String(str),x,ty,{align});
+  }
+
+  // ── HEADER BAR
+  rect(0,0,W,38,COL.bg);
+  // Gold accent line
+  rect(0,38,W,2,COL.gold);
+  text('ALMANYA GAYRIMENKUL ANALIZI',ml,13,7.5,COL.gold,'left','bold');
+  text('Kaufpreis Hesaplayici',ml,22,14,COL.white,'left','bold');
+  if(s.propNote){
+    text(s.propNote,ml,31,9,COL.text2,'left','normal');
+  }
+  // Date top right
+  const dateStr=new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  text(dateStr,W-mr,13,8,COL.text3,'right');
+
+  y=50;
+
+  // ── KPF VERDICT BOX
+  const verdictColors={excellent:COL.green,good:COL.gold2,medium:COL.yellow,bad:COL.red};
+  let vColor,vLabel,vText;
+  if(s.kpf<=15)     {vColor=verdictColors.excellent;vLabel='MUKEMMEL';vText='Guclu yatirim — nakit akisi pozitif';}
+  else if(s.kpf<=20){vColor=verdictColors.good;     vLabel='IYI';     vText='Kira taksidi buyuk ihtimalle karsilayacak';}
+  else if(s.kpf<=25){vColor=verdictColors.medium;   vLabel='ORTA';    vText='Dikkatli analiz gerekli, marjinal getiri';}
+  else              {vColor=verdictColors.bad;       vLabel='PAHALI';  vText='Kira taksidi karsilamayabilir';}
+
+  // KPF main card
+  rect(ml,y,contentW,28,COL.surface);
+  // Left accent bar
+  setFill(vColor); doc.rect(ml,y,3,28,'F');
+  text('KAUFPREISFAKTOR',ml+8,y+8,7,COL.text3,'left','normal');
+  text(fmt(s.kpf,1),ml+8,y+20,22,vColor,'left','bold');
+  text(vLabel,ml+8+30,y+20,10,vColor,'left','bold');
+  text(vText,ml+8,y+26,7.5,COL.text2,'left','normal');
+
+  // Brutto
+  rect(W/2+2,y,contentW/2-2,28,COL.surface);
+  text('BRUT GETIRI (Bruttorendite)',W/2+8,y+8,7,COL.text3,'left','normal');
+  const bColor=s.bruttoRendite>=6?COL.green:s.bruttoRendite>=4?COL.gold2:COL.red;
+  text(fmtPct(s.bruttoRendite,2),W/2+8,y+20,18,bColor,'left','bold');
+  text('yillik kira / satis fiyati',W/2+8,y+26,7.5,COL.text2,'left','normal');
+
+  y+=34;
+
+  // ── SECTION HEADING helper
+  function sectionHead(title){
+    line(ml,y,W-mr,y,COL.border,0.3);
+    y+=5;
+    text(title,ml,y,7.5,COL.gold,'left','bold');
+    y+=7;
+  }
+
+  // ── GRID OF 4 METRICS
+  sectionHead('MULK BILGILERI');
+  const gCols=4;
+  const gW=contentW/gCols-3;
+  const metrics=[
+    ['Satis Fiyati',fmtEur(s.price)],
+    ['Buyukluk',fmt(s.sqm,0)+' m²'],
+    ['Aylik Kira',fmtEur(s.rent)],
+    ['Yillik Kira',fmtEur(s.annualRent)],
+    ['Fiyat / m²',fmt(s.sqmPrice,0)+' €'],
+    ['Kira / m²',fmt(s.sqmRent,2)+' €'],
+    ['Kredi Tutari',fmtEur(s.loanAmt,0)],
+    ['Pesnat ('+s.downPct+'%)',fmtEur(s.downAmt,0)],
+  ];
+  for(let i=0;i<metrics.length;i+=4){
+    for(let j=0;j<4&&(i+j)<metrics.length;j++){
+      const cx=ml+(gW+3)*j;
+      rect(cx,y,gW,18,COL.surface);
+      text(metrics[i+j][0],cx+4,y+7,6.5,COL.text3,'left','normal');
+      text(metrics[i+j][1],cx+4,y+14,8.5,COL.text,'left','bold');
+    }
+    y+=22;
+  }
+
+  y+=2;
+
+  // ── CASHFLOW & EQUITY side by side
+  const colW=(contentW-6)/2;
+
+  sectionHead('AYLIK NAKIT AKISI');
+  // Card background
+  const cfBg=s.cashflow>50?[20,50,30]:s.cashflow>=-100?[50,45,15]:[50,20,20];
+  rect(ml,y,colW,48,cfBg);
+  // Rows
+  const cfRows=[
+    ['Kira Geliri','+'+fmtEur(s.rent,0)],
+    ['Banka Taksiti (Annuitat)','–'+fmtEur(s.monthlyMortgage,0)],
+    ['Hausgeld','–'+fmtEur(s.hausgeld,0)],
+  ];
+  let cy=y+7;
+  cfRows.forEach(([k,v])=>{
+    text(k,ml+4,cy,7.5,COL.text2,'left');
+    text(v,ml+colW-4,cy,7.5,COL.text,'right','bold');
+    cy+=8;
+  });
+  line(ml+3,cy-1,ml+colW-3,cy-1,COL.border);
+  cy+=3;
+  const cfColor=s.cashflow>50?COL.green:s.cashflow>=-100?COL.yellow:COL.red;
+  text('AYLIK FARK'  ,ml+4,cy+5,7,COL.text3,'left');
+  text((s.cashflow>=0?'+':'')+fmtEur(s.cashflow,0),ml+colW-4,cy+5,11,cfColor,'right','bold');
+
+  // EQUITY column
+  const ex=ml+colW+6;
+  rect(ex,y,colW,48,COL.surface);
+  // Gold left accent
+  setFill(COL.gold); doc.rect(ex,y,2.5,48,'F');
+  text('GEREKLI OZ SERMAYE',ex+6,y+7,7,COL.text3,'left');
+  const eqRows=[
+    ['Pesinat',fmtEur(s.downAmt,0)],
+    ['Grunderwerbsteuer ('+fmtPct(s.gstPct)+')',fmtEur(s.gstAmt,0)],
+    ['Notar + Grundbuch',fmtEur(s.notarAmt,0)],
+    ['Makler',fmtEur(s.maklerAmt,0)],
+  ];
+  let ey=y+14;
+  eqRows.forEach(([k,v])=>{
+    text(k,ex+6,ey,7,COL.text2,'left');
+    text(v,ex+colW-4,ey,7,COL.gold2,'right','bold');
+    ey+=7;
+  });
+  line(ex+4,ey,ex+colW-4,ey,COL.gold);
+  ey+=5;
+  text('TOPLAM',ex+6,ey+2,7.5,COL.text,'left','bold');
+  text(fmtEur(s.totalEquity,0),ex+colW-4,ey+2,10,COL.gold2,'right','bold');
+  if(!isNaN(s.savings)&&s.savings>0){
+    const diff=s.savings-s.totalEquity;
+    const dColor=diff>=0?COL.green:COL.red;
+    text(diff>=0?'Birikimin yeterli':'Birikim eksik',ex+6,ey+9,6.5,dColor,'left');
+    text((diff>=0?'+':'')+fmtEur(diff,0),ex+colW-4,ey+9,7,dColor,'right','bold');
+  }
+
+  y+=54;
+
+  // ── KREDI & BANKA
+  sectionHead('KREDI & BANKA KAPASITESI');
+
+  const kRows=[
+    ['Faiz Orani',fmtPct(s.rate,1)+' yillik sabit'],
+    ['Vade',s.term+' yil'],
+    ['Kredi Tutari',fmtEur(s.loanAmt,0)],
+    ['Aylik Taksit (Annuitat)',fmtEur(s.monthlyMortgage,0)],
+  ];
+  for(let i=0;i<kRows.length;i+=2){
+    for(let j=0;j<2&&(i+j)<kRows.length;j++){
+      const cx=ml+(colW+6)*j;
+      rect(cx,y,colW,16,COL.surface);
+      text(kRows[i+j][0],cx+4,y+6.5,6.5,COL.text3,'left','normal');
+      text(kRows[i+j][1],cx+4,y+13,8.5,COL.text,'left','bold');
+    }
+    y+=19;
+  }
+
+  if(!isNaN(s.debtRatio)&&s.debtRatio!==null&&!isNaN(s.income)&&s.income>0){
+    y+=2;
+    const barW=contentW;
+    const barH=8;
+    rect(ml,y,barW,barH,COL.surface);
+    const fillW=Math.min(s.debtRatio/100,1)*barW;
+    const barColor=s.debtRatio<=35?COL.green:s.debtRatio<=45?COL.yellow:COL.red;
+    setFill(barColor); doc.rect(ml,y,fillW,barH,'F');
+    // 40% marker
+    const markerX=ml+barW*0.40;
+    setDraw([255,255,255]); doc.setLineWidth(0.5);
+    doc.line(markerX,y,markerX,y+barH);
+    text('Banka Kapasitesi: '+fmtPct(s.debtRatio,1)+' / %40 limit',ml,y+barH+5,7.5,COL.text2,'left');
+    y+=barH+10;
+  }
+
+  // ── FOOTER
+  y=H-16;
+  line(ml,y,W-mr,y,COL.border);
+  y+=5;
+  text('Kaufpreis Hesaplayici · Almanya Gayrimenkul Analiz Araci',ml,y,6.5,COL.text3,'left');
+  text('Bu rapor bilgilendirme amaçlidir.',W-mr,y,6.5,COL.text3,'right');
+  text('Olusturuldu: '+dateStr,W/2,y,6.5,COL.text3,'center');
+
+  const filename='kaufpreis_'+(s.propNote?s.propNote.replace(/[^a-zA-Z0-9]/g,'_').substring(0,25)+'_':'')+new Date().toISOString().split('T')[0]+'.pdf';
+  doc.save(filename);
+  showToast('✓ PDF oluşturuldu ve indirildi','ok');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+updateRange('gst','gstDisplay','%',1);
+updateRange('rate','rateDisplay','%',1);
+updateRange('term','termDisplay','',0);
+</script>
+</body>
+</html>
