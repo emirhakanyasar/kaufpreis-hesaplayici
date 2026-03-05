@@ -657,203 +657,247 @@ function exportPDF(){
   const s=state;
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  const W=210,H=297;
-  const ml=18,mr=18,contentW=W-ml-mr;
+  const W=210, H=297, ml=16, mr=16, cW=W-ml-mr;
   let y=0;
 
-  // ── Color palette
-  const COL={
-    bg:[13,15,20], surface:[26,30,42], border:[37,42,56],
-    gold:[212,168,83], gold2:[240,201,110],
-    green:[74,222,128], red:[248,113,113], yellow:[251,191,36],
-    text:[232,234,240], text2:[136,146,164], text3:[85,97,122],
-    white:[255,255,255]
+  // ── Palette (light background, dark text)
+  const C={
+    headerBg:[22,28,45],
+    accent:[212,168,83],
+    accent2:[240,201,110],
+    sectionBg:[245,246,250],
+    rowBg:[255,255,255],
+    altBg:[249,250,252],
+    border:[220,224,235],
+    label:[110,118,140],
+    value:[28,34,52],
+    green:[34,139,69],  greenBg:[236,253,245],
+    yellow:[160,100,0], yellowBg:[254,252,232],
+    red:[185,28,28],    redBg:[254,242,242],
+    gold:[160,110,20],  goldBg:[255,251,235],
+    white:[255,255,255],
+    footerText:[150,155,170],
   };
 
-  function setFill(c){doc.setFillColor(...c);}
-  function setDraw(c){doc.setDrawColor(...c);}
-  function setTextC(c){doc.setTextColor(...c);}
-  function rect(x,ry,w,h,c){setFill(c);doc.rect(x,ry,w,h,'F');}
-  function line(x1,y1,x2,y2,c,lw=0.3){setDraw(c);doc.setLineWidth(lw);doc.line(x1,y1,x2,y2);}
+  const dateStr=new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
 
-  function text(str,x,ty,size,color,align='left',style='normal'){
-    doc.setFontSize(size); setTextC(color); doc.setFont('helvetica',style);
+  // ── helpers
+  function fill(color){doc.setFillColor(...color);}
+  function stroke(color){doc.setDrawColor(...color);}
+  function txtColor(color){doc.setTextColor(...color);}
+  function box(x,by,w,h,color){fill(color);doc.rect(x,by,w,h,'F');}
+  function hline(lx,ly,lw,color,weight=0.25){stroke(color);doc.setLineWidth(weight);doc.line(lx,ly,lx+lw,ly);}
+  function vline(vx,vy,vh,color,weight=0.25){stroke(color);doc.setLineWidth(weight);doc.line(vx,vy,vx,vy+vh);}
+
+  function t(str,x,ty,size,color,align='left',style='normal'){
+    doc.setFontSize(size); txtColor(color); doc.setFont('helvetica',style);
     doc.text(String(str),x,ty,{align});
   }
 
-  // ── HEADER BAR
-  rect(0,0,W,38,COL.bg);
-  // Gold accent line
-  rect(0,38,W,2,COL.gold);
-  text('ALMANYA GAYRIMENKUL ANALIZI',ml,13,7.5,COL.gold,'left','bold');
-  text('Kaufpreis Hesaplayici',ml,22,14,COL.white,'left','bold');
-  if(s.propNote){
-    text(s.propNote,ml,31,9,COL.text2,'left','normal');
-  }
-  // Date top right
-  const dateStr=new Date().toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric'});
-  text(dateStr,W-mr,13,8,COL.text3,'right');
-
-  y=50;
-
-  // ── KPF VERDICT BOX
-  const verdictColors={excellent:COL.green,good:COL.gold2,medium:COL.yellow,bad:COL.red};
-  let vColor,vLabel,vText;
-  if(s.kpf<=15)     {vColor=verdictColors.excellent;vLabel='MUKEMMEL';vText='Guclu yatirim — nakit akisi pozitif';}
-  else if(s.kpf<=20){vColor=verdictColors.good;     vLabel='IYI';     vText='Kira taksidi buyuk ihtimalle karsilayacak';}
-  else if(s.kpf<=25){vColor=verdictColors.medium;   vLabel='ORTA';    vText='Dikkatli analiz gerekli, marjinal getiri';}
-  else              {vColor=verdictColors.bad;       vLabel='PAHALI';  vText='Kira taksidi karsilamayabilir';}
-
-  // KPF main card
-  rect(ml,y,contentW,28,COL.surface);
-  // Left accent bar
-  setFill(vColor); doc.rect(ml,y,3,28,'F');
-  text('KAUFPREISFAKTOR',ml+8,y+8,7,COL.text3,'left','normal');
-  text(fmt(s.kpf,1),ml+8,y+20,22,vColor,'left','bold');
-  text(vLabel,ml+8+30,y+20,10,vColor,'left','bold');
-  text(vText,ml+8,y+26,7.5,COL.text2,'left','normal');
-
-  // Brutto
-  rect(W/2+2,y,contentW/2-2,28,COL.surface);
-  text('BRUT GETIRI (Bruttorendite)',W/2+8,y+8,7,COL.text3,'left','normal');
-  const bColor=s.bruttoRendite>=6?COL.green:s.bruttoRendite>=4?COL.gold2:COL.red;
-  text(fmtPct(s.bruttoRendite,2),W/2+8,y+20,18,bColor,'left','bold');
-  text('yillik kira / satis fiyati',W/2+8,y+26,7.5,COL.text2,'left','normal');
-
-  y+=34;
-
-  // ── SECTION HEADING helper
-  function sectionHead(title){
-    line(ml,y,W-mr,y,COL.border,0.3);
-    y+=5;
-    text(title,ml,y,7.5,COL.gold,'left','bold');
-    y+=7;
+  // clip text to maxWidth — truncate with ellipsis if too long
+  function tClip(str,x,ty,size,color,maxW,style='normal'){
+    doc.setFontSize(size); doc.setFont('helvetica',style);
+    const full=String(str);
+    let s2=full;
+    while(s2.length>3 && doc.getTextWidth(s2)>maxW) s2=s2.slice(0,-1);
+    if(s2!==full) s2=s2.slice(0,-1)+'...';
+    txtColor(color); doc.text(s2,x,ty);
   }
 
-  // ── GRID OF 4 METRICS
-  sectionHead('MULK BILGILERI');
-  const gCols=4;
-  const gW=contentW/gCols-3;
-  const metrics=[
-    ['Satis Fiyati',fmtEur(s.price)],
-    ['Buyukluk',fmt(s.sqm,0)+' m²'],
-    ['Aylik Kira',fmtEur(s.rent)],
-    ['Yillik Kira',fmtEur(s.annualRent)],
-    ['Fiyat / m²',fmt(s.sqmPrice,0)+' €'],
-    ['Kira / m²',fmt(s.sqmRent,2)+' €'],
-    ['Kredi Tutari',fmtEur(s.loanAmt,0)],
-    ['Pesnat ('+s.downPct+'%)',fmtEur(s.downAmt,0)],
+  // ── KEY-VALUE ROW in a table section
+  // draws one row: label left, value right, alternating bg
+  function kvRow(label, value, rowY, rowH, isAlt, labelW){
+    box(ml, rowY, cW, rowH, isAlt ? C.altBg : C.rowBg);
+    hline(ml, rowY+rowH, cW, C.border);
+    tClip(label, ml+4, rowY+rowH-3, 8, C.label, labelW-6, 'normal');
+    t(value, ml+cW-4, rowY+rowH-3, 8, C.value, 'right', 'bold');
+  }
+
+  // ── SECTION HEADER BAR
+  function sectionBar(title, sy){
+    box(ml, sy, cW, 8, C.sectionBg);
+    hline(ml, sy, cW, C.border);
+    hline(ml, sy+8, cW, C.border);
+    // left accent
+    box(ml, sy, 3, 8, C.accent);
+    t(title, ml+7, sy+5.8, 7, C.label, 'left', 'bold');
+    return sy+8;
+  }
+
+  // ─────────────────────────────────────────
+  // 1. HEADER
+  // ─────────────────────────────────────────
+  box(0,0,W,34,C.headerBg);
+  box(0,34,W,1.5,C.accent);
+
+  t('ALMANYA GAYRIMENKUL ANALIZI', ml, 10, 7, C.accent, 'left', 'bold');
+  t('Kaufpreis Hesaplayici', ml, 20, 15, C.white, 'left', 'bold');
+  if(s.propNote) tClip(s.propNote, ml, 29, 8.5, [180,185,200], cW-40, 'normal');
+  t(dateStr, W-mr, 10, 7.5, [130,135,160], 'right', 'normal');
+
+  y = 42;
+
+  // ─────────────────────────────────────────
+  // 2. KPF + BRUTTO — two cards side by side
+  // ─────────────────────────────────────────
+  let vColor, vLabel, vText, vBg;
+  if(s.kpf<=15)     {vColor=C.green; vBg=C.greenBg;  vLabel='MUKEMMEL'; vText='Guclu yatirim — pozitif nakit akisi';}
+  else if(s.kpf<=20){vColor=C.gold;  vBg=C.goldBg;   vLabel='IYI';      vText='Kira taksidi karsilayacak';}
+  else if(s.kpf<=25){vColor=C.yellow;vBg=C.yellowBg; vLabel='ORTA';     vText='Marjinal getiri — dikkatli ol';}
+  else              {vColor=C.red;   vBg=C.redBg;    vLabel='PAHALI';   vText='Kira taksidi karsilamayabilir';}
+
+  const bColor=s.bruttoRendite>=6?C.green:s.bruttoRendite>=4?C.gold:C.red;
+  const bBg   =s.bruttoRendite>=6?C.greenBg:s.bruttoRendite>=4?C.goldBg:C.redBg;
+
+  const cardH=28, cardGap=4, cardW=(cW-cardGap)/2;
+
+  // KPF card
+  box(ml, y, cardW, cardH, vBg);
+  stroke(vColor); doc.setLineWidth(0.4); doc.rect(ml,y,cardW,cardH);
+  box(ml, y, 3, cardH, vColor);
+  t('KAUFPREISFAKTOR', ml+6, y+7, 6.5, C.label, 'left', 'bold');
+  t(fmt(s.kpf,1), ml+6, y+19, 18, vColor, 'left', 'bold');
+  t(vLabel, ml+6+22, y+19, 9, vColor, 'left', 'bold');
+  tClip(vText, ml+6, y+25.5, 7, C.label, cardW-10, 'normal');
+
+  // Brutto card
+  const bx=ml+cardW+cardGap;
+  box(bx, y, cardW, cardH, bBg);
+  stroke(bColor); doc.setLineWidth(0.4); doc.rect(bx,y,cardW,cardH);
+  box(bx, y, 3, cardH, bColor);
+  t('BRUT GETIRI (Bruttorendite)', bx+6, y+7, 6.5, C.label, 'left', 'bold');
+  t(fmtPct(s.bruttoRendite,2), bx+6, y+19, 18, bColor, 'left', 'bold');
+  t('Yillik kira / satis fiyati', bx+6, y+25.5, 7, C.label, 'left', 'normal');
+
+  y+=cardH+6;
+
+  // ─────────────────────────────────────────
+  // 3. MULK BILGILERI — 2-col table rows
+  // ─────────────────────────────────────────
+  y = sectionBar('MULK BILGILERI', y);
+
+  const mulkRows=[
+    ['Satis Fiyati (Kaufpreis)', fmtEur(s.price)],
+    ['Buyukluk', fmt(s.sqm,0)+' m²  |  '+s.rooms+' oda'],
+    ['Aylik Beklenen Kira', fmtEur(s.rent)],
+    ['Yillik Kira Geliri', fmtEur(s.annualRent)],
+    ['Satis Fiyati / m²', fmt(s.sqmPrice,0)+' €/m²'],
+    ['Kira / m²', fmt(s.sqmRent,2)+' €/m²'],
   ];
-  for(let i=0;i<metrics.length;i+=4){
-    for(let j=0;j<4&&(i+j)<metrics.length;j++){
-      const cx=ml+(gW+3)*j;
-      rect(cx,y,gW,18,COL.surface);
-      text(metrics[i+j][0],cx+4,y+7,6.5,COL.text3,'left','normal');
-      text(metrics[i+j][1],cx+4,y+14,8.5,COL.text,'left','bold');
-    }
-    y+=22;
-  }
+  const rH=8.5;
+  mulkRows.forEach((r,i)=>{kvRow(r[0],r[1],y+i*rH,rH,i%2===1,cW*0.55);});
+  y+=mulkRows.length*rH+5;
 
-  y+=2;
+  // ─────────────────────────────────────────
+  // 4. NAKIT AKISI — table
+  // ─────────────────────────────────────────
+  y = sectionBar('AYLIK NAKIT AKISI', y);
 
-  // ── CASHFLOW & EQUITY side by side
-  const colW=(contentW-6)/2;
-
-  sectionHead('AYLIK NAKIT AKISI');
-  // Card background
-  const cfBg=s.cashflow>50?[20,50,30]:s.cashflow>=-100?[50,45,15]:[50,20,20];
-  rect(ml,y,colW,48,cfBg);
-  // Rows
   const cfRows=[
-    ['Kira Geliri','+'+fmtEur(s.rent,0)],
-    ['Banka Taksiti (Annuitat)','–'+fmtEur(s.monthlyMortgage,0)],
-    ['Hausgeld','–'+fmtEur(s.hausgeld,0)],
+    ['Kira Geliri', '+'+fmtEur(s.rent,0)],
+    ['Banka Taksiti (Annuitat)', '-'+fmtEur(s.monthlyMortgage,0)],
+    ['Hausgeld / Aidat', '-'+fmtEur(s.hausgeld,0)],
   ];
-  let cy=y+7;
-  cfRows.forEach(([k,v])=>{
-    text(k,ml+4,cy,7.5,COL.text2,'left');
-    text(v,ml+colW-4,cy,7.5,COL.text,'right','bold');
-    cy+=8;
-  });
-  line(ml+3,cy-1,ml+colW-3,cy-1,COL.border);
-  cy+=3;
-  const cfColor=s.cashflow>50?COL.green:s.cashflow>=-100?COL.yellow:COL.red;
-  text('AYLIK FARK'  ,ml+4,cy+5,7,COL.text3,'left');
-  text((s.cashflow>=0?'+':'')+fmtEur(s.cashflow,0),ml+colW-4,cy+5,11,cfColor,'right','bold');
+  cfRows.forEach((r,i)=>{kvRow(r[0],r[1],y+i*rH,rH,i%2===1,cW*0.55);});
+  y+=cfRows.length*rH;
 
-  // EQUITY column
-  const ex=ml+colW+6;
-  rect(ex,y,colW,48,COL.surface);
-  // Gold left accent
-  setFill(COL.gold); doc.rect(ex,y,2.5,48,'F');
-  text('GEREKLI OZ SERMAYE',ex+6,y+7,7,COL.text3,'left');
+  // Total row
+  const cfColor=s.cashflow>50?C.green:s.cashflow>=-100?C.yellow:C.red;
+  const cfBgTotal=s.cashflow>50?C.greenBg:s.cashflow>=-100?C.yellowBg:C.redBg;
+  box(ml, y, cW, rH+1, cfBgTotal);
+  hline(ml, y+rH+1, cW, cfColor, 0.5);
+  box(ml, y, 3, rH+1, cfColor);
+  tClip('AYLIK FARK', ml+6, y+rH-1.5, 8, cfColor, cW*0.55, 'bold');
+  t((s.cashflow>=0?'+':'')+fmtEur(s.cashflow,0), ml+cW-4, y+rH-1.5, 9, cfColor, 'right', 'bold');
+  y+=rH+1+5;
+
+  // ─────────────────────────────────────────
+  // 5. OZ SERMAYE — table
+  // ─────────────────────────────────────────
+  y = sectionBar('GEREKLI OZ SERMAYE (Eigenkapital)', y);
+
   const eqRows=[
-    ['Pesinat',fmtEur(s.downAmt,0)],
-    ['Grunderwerbsteuer ('+fmtPct(s.gstPct)+')',fmtEur(s.gstAmt,0)],
-    ['Notar + Grundbuch',fmtEur(s.notarAmt,0)],
-    ['Makler',fmtEur(s.maklerAmt,0)],
+    ['Pesinat ('+s.downPct+'%)', fmtEur(s.downAmt,0)],
+    ['Grunderwerbsteuer ('+fmtPct(s.gstPct,1)+')', fmtEur(s.gstAmt,0)],
+    ['Notar + Grundbuch', fmtEur(s.notarAmt,0)],
+    ['Makler Ucreti', fmtEur(s.maklerAmt,0)],
   ];
-  let ey=y+14;
-  eqRows.forEach(([k,v])=>{
-    text(k,ex+6,ey,7,COL.text2,'left');
-    text(v,ex+colW-4,ey,7,COL.gold2,'right','bold');
-    ey+=7;
-  });
-  line(ex+4,ey,ex+colW-4,ey,COL.gold);
-  ey+=5;
-  text('TOPLAM',ex+6,ey+2,7.5,COL.text,'left','bold');
-  text(fmtEur(s.totalEquity,0),ex+colW-4,ey+2,10,COL.gold2,'right','bold');
+  eqRows.forEach((r,i)=>{kvRow(r[0],r[1],y+i*rH,rH,i%2===1,cW*0.55);});
+  y+=eqRows.length*rH;
+
+  // Total row
+  box(ml,y,cW,rH+1,C.goldBg);
+  hline(ml,y+rH+1,cW,C.accent,0.5);
+  box(ml,y,3,rH+1,C.accent);
+  tClip('TOPLAM NAKIT IHTIYACI',ml+6,y+rH-1.5,8,C.gold,cW*0.55,'bold');
+  t(fmtEur(s.totalEquity,0),ml+cW-4,y+rH-1.5,9,C.gold,'right','bold');
+  y+=rH+1;
+
   if(!isNaN(s.savings)&&s.savings>0){
     const diff=s.savings-s.totalEquity;
-    const dColor=diff>=0?COL.green:COL.red;
-    text(diff>=0?'Birikimin yeterli':'Birikim eksik',ex+6,ey+9,6.5,dColor,'left');
-    text((diff>=0?'+':'')+fmtEur(diff,0),ex+colW-4,ey+9,7,dColor,'right','bold');
+    const dCol=diff>=0?C.green:C.red;
+    const dBg=diff>=0?C.greenBg:C.redBg;
+    box(ml,y,cW,rH,dBg);
+    hline(ml,y+rH,cW,C.border);
+    tClip(diff>=0?'Birikimin yeterli':'Birikim eksik — ek tasarruf gerekli',ml+6,y+rH-2,7.5,dCol,cW*0.6,'normal');
+    t((diff>=0?'+':'')+fmtEur(diff,0),ml+cW-4,y+rH-2,8,dCol,'right','bold');
+    y+=rH;
   }
+  y+=5;
 
-  y+=54;
-
-  // ── KREDI & BANKA
-  sectionHead('KREDI & BANKA KAPASITESI');
+  // ─────────────────────────────────────────
+  // 6. KREDI PARAMETRELERI — table
+  // ─────────────────────────────────────────
+  y = sectionBar('KREDI PARAMETRELERI', y);
 
   const kRows=[
-    ['Faiz Orani',fmtPct(s.rate,1)+' yillik sabit'],
-    ['Vade',s.term+' yil'],
-    ['Kredi Tutari',fmtEur(s.loanAmt,0)],
-    ['Aylik Taksit (Annuitat)',fmtEur(s.monthlyMortgage,0)],
+    ['Kredi Tutari', fmtEur(s.loanAmt,0)],
+    ['Faiz Orani (Sollzins)', fmtPct(s.rate,1)+' / yil — sabit'],
+    ['Vade (Laufzeit)', s.term+' yil'],
+    ['Aylik Taksit (Annuitat)', fmtEur(s.monthlyMortgage,0)],
   ];
-  for(let i=0;i<kRows.length;i+=2){
-    for(let j=0;j<2&&(i+j)<kRows.length;j++){
-      const cx=ml+(colW+6)*j;
-      rect(cx,y,colW,16,COL.surface);
-      text(kRows[i+j][0],cx+4,y+6.5,6.5,COL.text3,'left','normal');
-      text(kRows[i+j][1],cx+4,y+13,8.5,COL.text,'left','bold');
-    }
-    y+=19;
-  }
+  kRows.forEach((r,i)=>{kvRow(r[0],r[1],y+i*rH,rH,i%2===1,cW*0.55);});
+  y+=kRows.length*rH+5;
 
+  // ─────────────────────────────────────────
+  // 7. BANKA KAPASITESI — progress bar
+  // ─────────────────────────────────────────
   if(!isNaN(s.debtRatio)&&s.debtRatio!==null&&!isNaN(s.income)&&s.income>0){
-    y+=2;
-    const barW=contentW;
-    const barH=8;
-    rect(ml,y,barW,barH,COL.surface);
-    const fillW=Math.min(s.debtRatio/100,1)*barW;
-    const barColor=s.debtRatio<=35?COL.green:s.debtRatio<=45?COL.yellow:COL.red;
-    setFill(barColor); doc.rect(ml,y,fillW,barH,'F');
-    // 40% marker
-    const markerX=ml+barW*0.40;
-    setDraw([255,255,255]); doc.setLineWidth(0.5);
-    doc.line(markerX,y,markerX,y+barH);
-    text('Banka Kapasitesi: '+fmtPct(s.debtRatio,1)+' / %40 limit',ml,y+barH+5,7.5,COL.text2,'left');
+    y = sectionBar('BANKA KAPASITESI (%40 Kurali)', y);
+
+    const kRows2=[
+      ['Aylik Net Gelir', fmtEur(s.income,0)],
+      ['Mevcut Diger Taksitler', fmtEur(s.existing,0)],
+      ['Yeni Ipotek Taksiti', fmtEur(s.monthlyMortgage,0)],
+      ['Toplam Yukumluluk', fmtEur(s.monthlyMortgage+s.existing,0)],
+    ];
+    kRows2.forEach((r,i)=>{kvRow(r[0],r[1],y+i*rH,rH,i%2===1,cW*0.55);});
+    y+=kRows2.length*rH+4;
+
+    // bar track
+    const barH=7, barW=cW;
+    box(ml,y,barW,barH,[230,232,240]);
+    const fillRatio=Math.min(s.debtRatio/100,1);
+    const barCol=s.debtRatio<=35?C.green:s.debtRatio<=45?C.yellow:C.red;
+    box(ml,y,barW*fillRatio,barH,barCol);
+    // 40% marker line
+    stroke(C.value); doc.setLineWidth(0.6);
+    doc.line(ml+barW*0.40, y-1, ml+barW*0.40, y+barH+1);
+    // labels
+    t('%0',ml,y+barH+4.5,6.5,C.footerText,'left');
+    t('%40 limit',ml+barW*0.40,y+barH+4.5,6.5,C.value,'center','bold');
+    t('%100',ml+barW,y+barH+4.5,6.5,C.footerText,'right');
+    t('Borc/Gelir Orani: '+fmtPct(s.debtRatio,1),ml,y-2.5,7,barCol,'left','bold');
     y+=barH+10;
   }
 
-  // ── FOOTER
-  y=H-16;
-  line(ml,y,W-mr,y,COL.border);
-  y+=5;
-  text('Kaufpreis Hesaplayici · Almanya Gayrimenkul Analiz Araci',ml,y,6.5,COL.text3,'left');
-  text('Bu rapor bilgilendirme amaçlidir.',W-mr,y,6.5,COL.text3,'right');
-  text('Olusturuldu: '+dateStr,W/2,y,6.5,COL.text3,'center');
+  // ─────────────────────────────────────────
+  // 8. FOOTER
+  // ─────────────────────────────────────────
+  const fy=H-12;
+  box(0,fy-2,W,14,C.headerBg);
+  t('Kaufpreis Hesaplayici  ·  Almanya Gayrimenkul Analiz Araci',ml,fy+4,6.5,C.footerText,'left');
+  t('Olusturuldu: '+dateStr,W-mr,fy+4,6.5,C.footerText,'right');
 
   const filename='kaufpreis_'+(s.propNote?s.propNote.replace(/[^a-zA-Z0-9]/g,'_').substring(0,25)+'_':'')+new Date().toISOString().split('T')[0]+'.pdf';
   doc.save(filename);
